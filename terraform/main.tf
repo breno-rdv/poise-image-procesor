@@ -173,6 +173,15 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect = "Allow"
         Action = [
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:ReceiveMessage"
+        ]
+        Resource = aws_sqs_queue.processing.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "dynamodb:PutItem"
         ]
         Resource = aws_dynamodb_table.metadata.arn
