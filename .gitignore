@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 .terraform/
-.terraform.lock.hcl
 terraform.tfstate*
 dist/
 build/
