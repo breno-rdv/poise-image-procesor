@@ -1,4 +1,4 @@
-# poise-image-procesor
+# poise-image-processor
 
 Boilerplate for an event-driven image processor that uses S3, SQS, Lambda, DynamoDB, and CloudWatch.
 
