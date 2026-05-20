@@ -40,6 +40,17 @@ variable "sqs_visibility_timeout_seconds" {
   default     = 60
 }
 
+variable "lambda_architecture" {
+  description = "CPU architecture of the Lambda bootstrap binary. Use 'arm64' for GraalVM builds on Apple Silicon, 'x86_64' for amd64 container builds."
+  type        = string
+  default     = "arm64"
+
+  validation {
+    condition     = contains(["arm64", "x86_64"], var.lambda_architecture)
+    error_message = "lambda_architecture must be 'arm64' or 'x86_64'."
+  }
+}
+
 variable "sqs_max_receive_count" {
   description = "Number of times a message is received before being sent to the DLQ"
   type        = number

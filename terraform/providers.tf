@@ -26,12 +26,13 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = var.localstack ? [1] : []
     content {
-      s3       = "http://localhost:4566"
-      sqs      = "http://localhost:4566"
-      lambda   = "http://localhost:4566"
-      dynamodb = "http://localhost:4566"
-      iam      = "http://localhost:4566"
-      sts      = "http://localhost:4566"
+      s3             = "http://localhost:4566"
+      sqs            = "http://localhost:4566"
+      lambda         = "http://localhost:4566"
+      dynamodb       = "http://localhost:4566"
+      iam            = "http://localhost:4566"
+      sts            = "http://localhost:4566"
+      cloudwatchlogs = "http://localhost:4566"
     }
   }
 }

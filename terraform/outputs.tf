@@ -1,3 +1,8 @@
+output "lambda_log_group" {
+  description = "CloudWatch log group for Lambda function"
+  value       = aws_cloudwatch_log_group.lambda.name
+}
+
 output "raw_bucket_name" {
   description = "S3 bucket that receives raw image uploads"
   value       = aws_s3_bucket.raw.bucket
