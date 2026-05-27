@@ -77,12 +77,40 @@ localstack start -d        # -d runs it in the background
 localstack status services # wait until all services show "running"
 ```
 
-### 2 — Build the Lambda ZIP (JVM, no GraalVM required)
+### 2 — Build the Lambda ZIP
+
+Choose one of the two options below. They differ in build time and runtime parity with production.
+
+#### Option A — JVM build (fast iteration, no Docker required)
 
 ```bash
 ./mvnw package -DskipTests
-# produces: target/function.zip
+# produces: target/function.zip (class files + JARs, no bootstrap binary)
 ```
+
+Uses `lambda_runtime = "java21"` (set in `localstack.tfvars`). Builds in seconds.
+
+#### Option B — Native build (prod-parity, Linux binary via Docker)
+
+Builds a Linux-native `bootstrap` binary inside a Docker container using GraalVM from GitHub Container Registry — **no quay.io required**.
+
+```bash
+./build-native-linux.sh              # linux/arm64  (default, matches Lambda arm64)
+./build-native-linux.sh linux/amd64  # if using x86_64 Lambda
+# produces: target/function.zip with a Linux ELF 'bootstrap' binary
+```
+
+Uses the default `lambda_runtime = "provided.al2023"`. Before deploying, comment out or
+remove the `lambda_runtime` override from `localstack.tfvars`:
+
+```hcl
+# lambda_runtime = "java21"   ← comment out for native build
+```
+
+> **Why two runtimes?**
+> A JVM build contains only class files — Lambda needs `java21` to run them.
+> A native build contains a `bootstrap` binary — Lambda uses the custom `provided.al2023`
+> runtime to execute it directly (no JVM). Native cold-starts in milliseconds vs seconds.
 
 ### 3 — Deploy infrastructure with Terraform
 
@@ -198,11 +226,10 @@ localstack stop
 ## Building for production (native executable)
 
 ```bash
-# Requires Docker — builds inside a GraalVM container
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+./build-native-linux.sh
 ```
 
-Produces `target/function.zip` with the `bootstrap` binary for the `provided.al2023` runtime.
+Produces `target/function.zip` with a Linux ELF `bootstrap` binary for the `provided.al2023` runtime.
 
 ## Deploying to AWS
 

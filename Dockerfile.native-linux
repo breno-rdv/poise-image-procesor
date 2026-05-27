@@ -1,0 +1,17 @@
+FROM ghcr.io/graalvm/graalvm-community:25
+
+WORKDIR /build
+
+# Copy build files first for better layer caching
+COPY pom.xml mvnw ./
+COPY .mvn .mvn/
+
+# Skip Maven wrapper SHA256 validation (fails in containers due to download quirks)
+RUN sed -i '/distributionSha256Sum/d' .mvn/wrapper/maven-wrapper.properties
+
+# Download dependencies
+RUN ./mvnw dependency:go-offline -q
+
+# Copy source and build
+COPY src src/
+RUN ./mvnw package -Dnative -DskipTests --no-transfer-progress

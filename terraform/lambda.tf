@@ -15,8 +15,8 @@ resource "aws_lambda_function" "image_processor" {
   filename         = var.lambda_zip_path
   source_code_hash = fileexists(var.lambda_zip_path) ? filebase64sha256(var.lambda_zip_path) : null
 
-  # Custom runtime — required for GraalVM native images
-  runtime = "provided.al2023"
+  # provided.al2023 for GraalVM native builds; java21 for JVM builds (local dev)
+  runtime = var.lambda_runtime
 
   # Quarkus Lambda ignores the handler value for native builds, but the field is required
   handler = "io.quarkus.amazon.lambda.runtime.QuarkusStreamHandler::handleRequest"

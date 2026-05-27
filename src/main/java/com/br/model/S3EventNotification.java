@@ -1,12 +1,14 @@
 package com.br.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import java.util.List;
 
 /**
  * Subset of the S3 event notification JSON that S3 publishes to SQS
  * when a new object is created in the raw bucket.
  */
+@RegisterForReflection   // registers this class + all nested static classes for GraalVM reflection
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class S3EventNotification {
 

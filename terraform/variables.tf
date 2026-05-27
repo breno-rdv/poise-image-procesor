@@ -51,6 +51,12 @@ variable "lambda_architecture" {
   }
 }
 
+variable "lambda_runtime" {
+  description = "Lambda runtime identifier. Use 'provided.al2023' for native (GraalVM) builds, 'java21' for JVM builds (local dev with LocalStack)."
+  type        = string
+  default     = "provided.al2023"
+}
+
 variable "sqs_max_receive_count" {
   description = "Number of times a message is received before being sent to the DLQ"
   type        = number
