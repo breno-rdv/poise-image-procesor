@@ -1,6 +1,7 @@
 package com.br.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import java.util.List;
 
@@ -12,10 +13,11 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class S3EventNotification {
 
-    private List<Record> Records;
+    @JsonProperty("Records")
+    private List<Record> records;
 
-    public List<Record> getRecords() { return Records; }
-    public void setRecords(List<Record> records) { this.Records = records; }
+    public List<Record> getRecords() { return records; }
+    public void setRecords(List<Record> records) { this.records = records; }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Record {

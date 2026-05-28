@@ -96,13 +96,12 @@ public class ImageProcessingService {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         var builder = Thumbnails.of(new ByteArrayInputStream(input))
-            .outputFormat(spec.format())
-            .keepAspectRatio(true);
+            .outputFormat(spec.format());
 
         if (spec.height() > 0) {
-            builder.size(spec.width(), spec.height());
+            builder.size(spec.width(), spec.height()).keepAspectRatio(false);
         } else {
-            builder.width(spec.width());
+            builder.width(spec.width()).keepAspectRatio(true);
         }
 
         builder.toOutputStream(out);
