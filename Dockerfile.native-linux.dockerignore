@@ -1,6 +1,0 @@
-# Ignore file specifically for Dockerfile.native-linux (full Maven build inside Docker).
-# Docker BuildKit picks this up automatically, overriding .dockerignore for this Dockerfile.
-# We need src/ included, so we exclude only large/irrelevant directories.
-.git
-.idea
-target

@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "poise-image-processor"
+version = "1.0.0"
+description = "AWS Lambda that resizes images triggered by SQS/S3 events"
+authors = []
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+boto3 = "^1.38"
+Pillow = "^11.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+moto = { extras = ["s3", "dynamodb", "sqs"], version = "^5.1" }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

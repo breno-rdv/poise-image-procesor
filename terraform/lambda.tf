@@ -11,19 +11,18 @@ resource "aws_cloudwatch_log_group" "lambda" {
 resource "aws_lambda_function" "image_processor" {
   function_name = var.project_name
 
-  # Quarkus native build produces target/function.zip containing a 'bootstrap' binary
+  # Python deployment zip produced by build.sh
   filename         = var.lambda_zip_path
   source_code_hash = fileexists(var.lambda_zip_path) ? filebase64sha256(var.lambda_zip_path) : null
 
-  # provided.al2023 for GraalVM native builds; java21 for JVM builds (local dev)
+  # python3.12 runtime; use provided.al2023 only for native (non-Python) builds
   runtime = var.lambda_runtime
 
-  # Quarkus Lambda ignores the handler value for native builds, but the field is required
-  handler = "io.quarkus.amazon.lambda.runtime.QuarkusStreamHandler::handleRequest"
+  # Python Lambda handler: module.file.function
+  handler = "app.handler.handler"
 
-  # Must match the architecture of the compiled 'bootstrap' binary.
-  # GraalVM container build on Apple Silicon produces aarch64 → arm64.
-  # Change to ["x86_64"] if you build with --platform linux/amd64.
+  # Must match the architecture of the Pillow wheel installed by build.sh.
+  # build.sh uses --platform manylinux2014_x86_64, so this must be x86_64.
   architectures = [var.lambda_architecture]
 
   role        = aws_iam_role.lambda_exec.arn
@@ -41,7 +40,6 @@ resource "aws_lambda_function" "image_processor" {
       THUMBNAILS_BUCKET = aws_s3_bucket.thumbnails.bucket
       RAW_BUCKET        = aws_s3_bucket.raw.bucket
       AWS_REGION_NAME   = var.aws_region
-      QUARKUS_PROFILE   = "prod"
     }
   }
 

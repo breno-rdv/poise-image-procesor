@@ -17,15 +17,15 @@ variable "localstack" {
 }
 
 variable "lambda_zip_path" {
-  description = "Path to the Lambda deployment zip (must contain a 'bootstrap' binary for GraalVM native)"
+  description = "Path to the Lambda deployment zip produced by build.sh"
   type        = string
-  default     = "../target/function.zip"
+  default     = "../dist/function.zip"
 }
 
 variable "lambda_memory_mb" {
-  description = "Lambda memory in MB. Native images typically run well at 256 MB"
+  description = "Lambda memory in MB. Python image processing typically needs 512–1024 MB"
   type        = number
-  default     = 256
+  default     = 512
 }
 
 variable "lambda_timeout_seconds" {
@@ -41,9 +41,9 @@ variable "sqs_visibility_timeout_seconds" {
 }
 
 variable "lambda_architecture" {
-  description = "CPU architecture of the Lambda bootstrap binary. Use 'arm64' for GraalVM builds on Apple Silicon, 'x86_64' for amd64 container builds."
+  description = "CPU architecture. Must match the Pillow wheel platform used in build.sh (manylinux2014_x86_64 → x86_64)."
   type        = string
-  default     = "arm64"
+  default     = "x86_64"
 
   validation {
     condition     = contains(["arm64", "x86_64"], var.lambda_architecture)
@@ -52,9 +52,9 @@ variable "lambda_architecture" {
 }
 
 variable "lambda_runtime" {
-  description = "Lambda runtime identifier. Use 'provided.al2023' for native (GraalVM) builds, 'java21' for JVM builds (local dev with LocalStack)."
+  description = "Lambda runtime identifier. Use 'python3.12' for the Python implementation."
   type        = string
-  default     = "provided.al2023"
+  default     = "python3.12"
 }
 
 variable "sqs_max_receive_count" {
