@@ -3,6 +3,8 @@ Image processor for generating vehicle thumbnails.
 
 ## Architecture
 
+[Architecture Diagram](./image-processor-diagram.drawio)
+
 ```
 Upload image to S3 (raw bucket)
   key:      {dealerId}/{carroId}/{filename}
