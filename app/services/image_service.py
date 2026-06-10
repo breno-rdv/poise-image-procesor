@@ -19,7 +19,7 @@ class ImageService:
         """Entry point called for each SQS message body (an S3 event notification JSON).
         Idempotent: if the output key already exists in S3, the message is skipped.
 
-        Expected S3 key format : {dealerId}/{carroId}/{filename}
+        Expected S3 key format : {dealerId}/{vehicleId}/{filename}
         Expected S3 metadata   : target-size   → e.g. "800x600"
                                  target-format  → e.g. "webp"
         """
@@ -38,14 +38,14 @@ class ImageService:
         # S3 event notifications URL-encode the object key
         source_key = urllib.parse.unquote_plus(record["s3"]["object"]["key"])
 
-        # Parse hierarchy from key: {dealerId}/{carroId}/{filename}
+        # Parse hierarchy from key: {dealerId}/{vehicleId}/{filename}
         segments = source_key.split("/")
         if len(segments) < 3:
-            logger.error("Invalid S3 key '%s' — expected dealerId/carroId/filename", source_key)
+            logger.error("Invalid S3 key '%s' — expected dealerId/vehicleId/filename", source_key)
             return
 
         dealer_id = segments[0]
-        carro_id  = segments[1]
+        vehicle_id  = segments[1]
         filename  = segments[-1]
 
         metadata = self._s3.get_object_metadata(source_key)
@@ -55,7 +55,7 @@ class ImageService:
         )
 
         filename_base = filename.rsplit(".", 1)[0] if "." in filename else filename
-        output_key = f"{dealer_id}/{carro_id}/{filename_base}/{spec.to_suffix()}"
+        output_key = f"{dealer_id}/{vehicle_id}/{filename_base}/{spec.to_suffix()}"
 
         if self._s3.thumbnail_exists(output_key):
             logger.info("Output already exists, skipping idempotently: %s", output_key)
@@ -66,7 +66,7 @@ class ImageService:
         self._s3.upload_thumbnail(output_key, resized_bytes, spec.content_type())
 
         self._dynamo.save_processed_record(
-            output_key, dealer_id, carro_id, source_key,
+            output_key, dealer_id, vehicle_id, source_key,
             metadata.get("target-size", ""), spec.format,
         )
 

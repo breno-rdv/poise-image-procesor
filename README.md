@@ -7,7 +7,7 @@ Image processor for generating vehicle thumbnails.
 
 ```
 Upload image to S3 (raw bucket)
-  key:      {dealerId}/{carroId}/{filename}
+  key:      {dealerId}/{vehicleId}/{filename}
   metadata: x-amz-meta-target-size=800x600
             x-amz-meta-target-format=webp
         |
@@ -16,7 +16,7 @@ S3 ObjectCreated event -> SQS queue
         |
         v
 Lambda (SQSLambdaHandler)
-  1. Parse S3 key  -> dealerId / carroId / filename
+  1. Parse S3 key  -> dealerId / vehicleId / filename
   2. Read metadata -> target-size / target-format
   3. Check S3 for output key (idempotency gate)
   4. Download raw image
@@ -25,7 +25,7 @@ Lambda (SQSLambdaHandler)
   7. Persist record to DynamoDB
         |
         v
-Thumbnails bucket: {dealerId}/{carroId}/{filename-base}/{size}.{format}
+Thumbnails bucket: {dealerId}/{vehicleId}/{filename-base}/{size}.{format}
 DynamoDB: audit record per processed variant
 ```
 
@@ -33,13 +33,13 @@ DynamoDB: audit record per processed variant
 
 | S3 object attribute | Value | Example |
 |---|---|---|
-| S3 key | `{dealerId}/{carroId}/{filename}` | `dealer42/carro99/front.jpg` |
+| S3 key | `{dealerId}/{vehicleId}/{filename}` | `dealer42/vehicle99/front.jpg` |
 | User metadata | `x-amz-meta-target-size` | `800x600` or `800` (auto-height) |
 | User metadata | `x-amz-meta-target-format` | `webp` · `jpeg` · `png` |
 
 ### Idempotency
 
-The output S3 key is **deterministic**: `{dealerId}/{carroId}/{filename-base}/{size}.{format}`.
+The output S3 key is **deterministic**: `{dealerId}/{vehicleId}/{filename-base}/{size}.{format}`.
 Before any processing the Lambda does a `HeadObject` on that key. If it already exists
 the message is silently skipped — re-delivering the same SQS message is safe.
 
@@ -127,13 +127,13 @@ This creates the S3 buckets, SQS queues, DynamoDB table, and Lambda — all insi
 
 ### 4 — Upload a test image
 
-The key must follow `{dealerId}/{carroId}/{filename}`.
+The key must follow `{dealerId}/{vehicleId}/{filename}`.
 Pass the resize spec as S3 user metadata.
 
 ```bash
-# Example: dealer42 / carro99 / front.jpg  ->  resize to 800x600 webp
+# Example: dealer42 / vehicle99 / front.jpg  ->  resize to 800x600 webp
 aws --endpoint-url=http://localhost:4566 --profile localstack s3 cp /path/to/front.jpg \
-  s3://poise-image-processor-raw/dealer42/carro99/front.jpg \
+  s3://poise-image-processor-raw/dealer42/vehicle99/front.jpg \
   --metadata "target-size=800x600,target-format=webp"
 ```
 
@@ -142,12 +142,12 @@ aws --endpoint-url=http://localhost:4566 --profile localstack s3 cp /path/to/fro
 > ```bash
 > # Listing card thumbnail
 > aws --endpoint-url=http://localhost:4566 --profile localstack s3 cp /path/to/front.jpg \
->   s3://poise-image-processor-raw/dealer42/carro99/front.jpg \
+>   s3://poise-image-processor-raw/dealer42/vehicle99/front.jpg \
 >   --metadata "target-size=400x300,target-format=webp"
 >
 > # Detail page hero (width only, height auto-proportional)
 > aws --endpoint-url=http://localhost:4566 --profile localstack s3 cp /path/to/front.jpg \
->   s3://poise-image-processor-raw/dealer42/carro99/front.jpg \
+>   s3://poise-image-processor-raw/dealer42/vehicle99/front.jpg \
 >   --metadata "target-size=1200,target-format=jpeg"
 > ```
 
@@ -164,8 +164,8 @@ aws --endpoint-url=http://localhost:4566 --profile localstack logs tail \
 
 ```bash
 aws --endpoint-url=http://localhost:4566 --profile localstack s3 ls \
-  s3://poise-image-processor-thumbnails/dealer42/carro99/front/ --recursive
-# Expected: dealer42/carro99/front/800x600.webp
+  s3://poise-image-processor-thumbnails/dealer42/vehicle99/front/ --recursive
+# Expected: dealer42/vehicle99/front/800x600.webp
 ```
 
 **Check the DynamoDB record:**
@@ -173,7 +173,7 @@ aws --endpoint-url=http://localhost:4566 --profile localstack s3 ls \
 ```bash
 aws --endpoint-url=http://localhost:4566 --profile localstack dynamodb get-item \
   --table-name poise-image-processor-metadata \
-  --key '{"imageId": {"S": "dealer42/carro99/front/800x600.webp"}}'
+  --key '{"imageId": {"S": "dealer42/vehicle99/front/800x600.webp"}}'
 ```
 
 Expected response:
@@ -181,10 +181,10 @@ Expected response:
 ```json
 {
     "Item": {
-        "imageId":     {"S": "dealer42/carro99/front/800x600.webp"},
+        "imageId":     {"S": "dealer42/vehicle99/front/800x600.webp"},
         "dealerId":    {"S": "dealer42"},
-        "carroId":     {"S": "carro99"},
-        "sourceKey":   {"S": "dealer42/carro99/front.jpg"},
+        "vehicleId":     {"S": "vehicle99"},
+        "sourceKey":   {"S": "dealer42/vehicle99/front.jpg"},
         "size":        {"S": "800x600"},
         "format":      {"S": "webp"},
         "status":      {"S": "PROCESSED"},
@@ -199,12 +199,12 @@ Re-upload the exact same file. The Lambda should log `"Output already exists, sk
 
 ```bash
 aws --endpoint-url=http://localhost:4566 --profile localstack s3 cp /path/to/front.jpg \
-  s3://poise-image-processor-raw/dealer42/carro99/front.jpg \
+  s3://poise-image-processor-raw/dealer42/vehicle99/front.jpg \
   --metadata "target-size=800x600,target-format=webp"
 
 aws --endpoint-url=http://localhost:4566 --profile localstack logs tail \
   /aws/lambda/poise-image-processor
-# Look for: "Output already exists, skipping idempotently: dealer42/carro99/front/800x600.webp"
+# Look for: "Output already exists, skipping idempotently: dealer42/vehicle99/front/800x600.webp"
 ```
 
 ### 8 — Inspect the DLQ on failure

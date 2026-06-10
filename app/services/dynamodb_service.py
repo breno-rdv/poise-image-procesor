@@ -12,7 +12,7 @@ class DynamoDbService:
         self,
         output_key: str,
         dealer_id: str,
-        carro_id: str,
+        vehicle_id: str,
         source_key: str,
         size: str,
         fmt: str,
@@ -26,7 +26,7 @@ class DynamoDbService:
             Item={
                 "imageId":     {"S": output_key},
                 "dealerId":    {"S": dealer_id},
-                "carroId":     {"S": carro_id},
+                "vehicleId":     {"S": vehicle_id},
                 "sourceKey":   {"S": source_key},
                 "size":        {"S": size},
                 "format":      {"S": fmt},
