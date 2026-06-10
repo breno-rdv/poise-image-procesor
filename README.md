@@ -3,7 +3,7 @@ Image processor for generating vehicle thumbnails.
 
 ## Architecture
 
-[Architecture Diagram](./image-processor-diagram.drawio)
+![Architecture Diagram](./image-processor-diagram.png)
 
 ```
 Upload image to S3 (raw bucket)
@@ -15,12 +15,12 @@ Upload image to S3 (raw bucket)
 S3 ObjectCreated event -> SQS queue
         |
         v
-Lambda (SQSLambdaHandler)
+Lambda (handler)
   1. Parse S3 key  -> dealerId / vehicleId / filename
   2. Read metadata -> target-size / target-format
   3. Check S3 for output key (idempotency gate)
   4. Download raw image
-  5. Resize with Thumbnailator
+  5. Resize with Pillow
   6. Upload to thumbnails bucket
   7. Persist record to DynamoDB
         |
@@ -43,6 +43,79 @@ The output S3 key is **deterministic**: `{dealerId}/{vehicleId}/{filename-base}/
 Before any processing the Lambda does a `HeadObject` on that key. If it already exists
 the message is silently skipped — re-delivering the same SQS message is safe.
 
+### Concurrency
+
+| Assumption | Value |
+|---|---|
+| Dealers on platform | ~10,000 |
+| Active dealers (50%) | 5,000 |
+| New cars registered per dealer per day | 10 |
+| Photos per car | 20 |
+| **Total photos/day** | **1,000,000** |
+
+Assuming all uploads are concentrated at a **1-hour peak window**:
+
+```
+1,000,000 photos / 3,600 s ≈ 278 photos/second
+```
+
+Each resize takes ~500 ms (measured). Applying [Little's Law](https://en.wikipedia.org/wiki/Little%27s_law):
+
+```
+concurrency = arrival_rate × avg_duration
+            = 278 req/s × 0.5 s
+            = ~139 concurrent executions
+```
+
+139 concurrent executions is within Lambda's default account limit of 1,000, but high enough to risk starving other Lambda functions in the account during peak.  
+**Setting reserved concurrency to ~150 is recommended** to cap this function's footprint and protect the rest of the account.
+
+### Multi-tenancy
+
+Each dealer (tenant) must be isolated from others during image processing to prevent cross-tenant state leakage in shared Lambda execution environments.
+
+#### Architecture
+
+```
+S3 (raw upload)
+  │  ObjectCreated notification
+  ▼
+SQS Standard (intake queue)
+  │  batch_size = 10
+  ▼
+Router Lambda                       ← extracts dealer_id from S3 key
+  │  TenantId = dealer_id
+  │  InvocationType = Event (async)
+  ▼
+Image Processor Lambda              ← isolated per dealer (Tenant Isolation Mode)
+```
+
+#### How it works: Lambda Tenant Isolation Mode
+
+The Router Lambda invokes the Image Processor Lambda directly via `lambda:InvokeFunction`, passing `TenantId=dealer_id`. Lambda's **Tenant Isolation Mode** uses this ID to route each invocation to a dealer-specific execution environment — no two dealers ever share the same Lambda container, eliminating cross-tenant state leakage.
+
+This is simpler and cheaper than a FIFO queue approach: no extra queue, no FIFO throughput limits, and no additional SQS costs.
+
+> **Reference**: [Integrating Event Source Mappings with AWS Lambda Tenant Isolation Mode](https://aws.amazon.com/blogs/compute/integrating-event-source-mappings-with-aws-lambda-tenant-isolation-mode/)
+
+#### Why a Router Lambda?
+
+AWS S3 bucket notifications **cannot target a Lambda function directly with a tenant ID** — the Router Lambda is a thin intermediary that:
+
+1. Reads the S3 event notification from the Standard intake queue
+2. Extracts `dealer_id` from the S3 key (first path segment: `{dealer_id}/{carroId}/{filename}`)
+3. Invokes the Image Processor Lambda with `TenantId = dealer_id`
+
+#### Enabling Tenant Isolation Mode
+
+Tenant isolation mode must be enabled on the Image Processor Lambda after deployment. Until the Terraform AWS provider adds native support, use the AWS CLI:
+
+```bash
+aws lambda put-function-event-invoke-config \
+  --function-name poise-image-processor \
+  --tenant-isolation-config '{"mode":"ENABLED"}'
+```
+
 ---
 
 ## Testing locally with LocalStack
@@ -55,7 +128,7 @@ the message is silently skipped — re-delivering the same SQS message is safe.
 | LocalStack CLI | `pip install localstack` |
 | Terraform >= 1.6 | https://developer.hashicorp.com/terraform/install |
 | AWS CLI v2 | https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html |
-| Java 21+ & Maven | included via `./mvnw` wrapper |
+| Poetry | https://python-poetry.org/docs/#installation |
 
 ### 0 — Configure a LocalStack AWS profile (one-time)
 
@@ -81,38 +154,12 @@ localstack status services # wait until all services show "running"
 
 ### 2 — Build the Lambda ZIP
 
-Choose one of the two options below. They differ in build time and runtime parity with production.
-
-#### Option A — JVM build (fast iteration, no Docker required)
-
 ```bash
-./mvnw package -DskipTests
-# produces: target/function.zip (class files + JARs, no bootstrap binary)
+./build.sh
+# produces: dist/function.zip (~25 MB, includes Pillow + boto3 with manylinux wheels)
 ```
 
-Uses `lambda_runtime = "java21"` (set in `localstack.tfvars`). Builds in seconds.
-
-#### Option B — Native build (prod-parity, Linux binary via Docker)
-
-Builds a Linux-native `bootstrap` binary inside a Docker container using GraalVM from GitHub Container Registry — **no quay.io required**.
-
-```bash
-./build-native-linux.sh              # linux/arm64  (default, matches Lambda arm64)
-./build-native-linux.sh linux/amd64  # if using x86_64 Lambda
-# produces: target/function.zip with a Linux ELF 'bootstrap' binary
-```
-
-Uses the default `lambda_runtime = "provided.al2023"`. Before deploying, comment out or
-remove the `lambda_runtime` override from `localstack.tfvars`:
-
-```hcl
-# lambda_runtime = "java21"   ← comment out for native build
-```
-
-> **Why two runtimes?**
-> A JVM build contains only class files — Lambda needs `java21` to run them.
-> A native build contains a `bootstrap` binary — Lambda uses the custom `provided.al2023`
-> runtime to execute it directly (no JVM). Native cold-starts in milliseconds vs seconds.
+Requires Poetry in your PATH. See [pyproject.toml](pyproject.toml) for dependencies.
 
 ### 3 — Deploy infrastructure with Terraform
 
@@ -251,4 +298,4 @@ terraform apply   # uses default variables (no localstack.tfvars)
 
 **Concepts:** async processing · retries · DLQ · idempotency · event-driven architecture
 
-**Java:** SQS consumer · DynamoDB SDK v2 · structured logging · Quarkus native image · Thumbnailator
+**Python:** SQS consumer · DynamoDB SDK (boto3) · structured logging · Pillow image processing · Lambda Tenant Isolation Mode

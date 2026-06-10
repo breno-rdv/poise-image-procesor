@@ -1,3 +1,4 @@
+import json
 import logging
 from app.services.image_service import ImageService
 
@@ -8,13 +9,17 @@ _service = ImageService()
 
 
 def handler(event: dict, context: object) -> None:
-    """Lambda entry point. Receives an SQS event containing S3 event notification records.
-    Re-raises on failure so SQS retries the message (up to maxReceiveCount, then DLQ).
+    """Lambda entry point. Invoked directly by the Router Lambda with a single
+    S3 event record as the payload (using Lambda Tenant Isolation Mode).
+
+    context.tenant_id is the dealer_id set by the Router — Lambda ensures this
+    invocation runs in a dealer-specific execution environment.
+
+    Re-raises on failure so the Router Lambda's retry logic surfaces the error.
     """
-    for message in event.get("Records", []):
-        message_id = message.get("messageId", "<unknown>")
-        try:
-            _service.process(message["body"])
-        except Exception:
-            logger.exception("Failed to process SQS message %s", message_id)
-            raise
+    try:
+        _service.process(json.dumps({"Records": [event]}))
+    except Exception:
+        logger.exception("Failed to process image record: %s",
+                         event.get("s3", {}).get("object", {}).get("key", "<unknown>"))
+        raise

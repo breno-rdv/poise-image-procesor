@@ -1,4 +1,4 @@
-# Dead-letter queue — receives messages that fail after max_receive_count attempts
+# Dead-letter queue for the Standard intake queue
 resource "aws_sqs_queue" "dlq" {
   name = "${var.project_name}-dlq"
 
@@ -10,11 +10,13 @@ resource "aws_sqs_queue" "dlq" {
   }
 }
 
-# Main processing queue
+# Standard intake queue — receives S3 event notifications.
+# The Router Lambda consumes this queue and invokes the Image Processor Lambda
+# directly using Lambda Tenant Isolation Mode (no FIFO queue needed).
 resource "aws_sqs_queue" "image_queue" {
   name = "${var.project_name}-queue"
 
-  # Must be >= lambda timeout so in-flight messages stay invisible while Lambda runs
+  # Must be >= Router Lambda timeout so in-flight messages stay invisible while it runs
   visibility_timeout_seconds = var.sqs_visibility_timeout_seconds
   message_retention_seconds  = 86400 # 1 day
 
@@ -28,7 +30,7 @@ resource "aws_sqs_queue" "image_queue" {
   }
 }
 
-# Allow S3 to publish notifications to the queue
+# Allow S3 to publish notifications to the Standard intake queue
 resource "aws_sqs_queue_policy" "allow_s3" {
   queue_url = aws_sqs_queue.image_queue.id
 
@@ -50,3 +52,4 @@ resource "aws_sqs_queue_policy" "allow_s3" {
     ]
   })
 }
+
